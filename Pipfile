@@ -5,6 +5,7 @@ name = "pypi"
 
 [packages]
 sqlalchemy = "*"
+requests = "*"
 
 [dev-packages]
 
