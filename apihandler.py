@@ -8,8 +8,8 @@ from model import Instance, Product
 
 
 class APIHandler:
-    _base_url: str # without trailing /
-    _session: session # database session
+    _base_url: str  # without trailing /
+    _session: session  # database session
 
     _current_access_token: Optional[str] = None
     _current_instance_id: Optional[int] = None
@@ -18,8 +18,8 @@ class APIHandler:
         if self._current_instance_id is None or self._current_access_token is None:
             raise RuntimeError("Instance ID or access token are not set in this instance! Call start(..) first!")
 
-    def __init__(self, session: session, base_url: str):
-        self._session = session
+    def __init__(self, db_session: session, base_url: str):
+        self._session = db_session
         self._base_url = base_url
 
     def start(self, access_token: Optional[str] = None):
@@ -45,7 +45,7 @@ class APIHandler:
             else:
                 raise RuntimeError(f"/auth returned {request.status_code}, which is not 201. Cannot continue.")
         else:
-            instance = self._session.query(Instance).filter(Instance.access_token==access_token).first()
+            instance = self._session.query(Instance).filter(Instance.access_token == access_token).first()
 
             if instance is None:
                 raise RuntimeError("Invalid access token given.")
