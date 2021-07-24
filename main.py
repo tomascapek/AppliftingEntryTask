@@ -15,3 +15,5 @@ if __name__ == '__main__':
         handler.start()
     else:
         handler.start(instance.access_token)
+
+    handler.create_product("First product", "Not a real product, just a mock.")
