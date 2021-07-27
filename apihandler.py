@@ -7,6 +7,10 @@ from sqlalchemy.orm import session
 from model import Instance, Product
 
 
+class ProductAlreadyExists(RuntimeError):
+    pass
+
+
 class APIHandler:
     _base_url: str  # without trailing /
     _session: session  # database session
@@ -61,7 +65,7 @@ class APIHandler:
         query = self._session.query(Product).filter(Product.name == name).first()
 
         if query is not None:
-            raise RuntimeError("This product already exists!") # TODO: Add custom exception
+            raise ProductAlreadyExists()
 
         self._session.add(product)
         self._session.flush()
