@@ -124,3 +124,38 @@ def test_create_product_bad_request(requests_post, session):
         handler.create_product(product_name, product_description)
 
     assert session.query(Product).all() == []
+
+
+# .list_products() -----------------------------------------------
+
+@patch("requests.post")
+def test_list_products(requests_post, session):
+    insert_access_token(session)
+
+    handler = APIHandler(session, "URL")
+    handler.start("AC_TOKEN")
+
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json={
+            "id": 1
+        }
+    )
+
+    assert handler.create_product("Product 1", "Description") == 1
+
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json={
+            "id": 2
+        }
+    )
+
+    assert handler.create_product("Product 2", "Description") == 2
+
+    result = handler.list_products()
+
+    assert result[0].name == "Product 1"
+    assert result[0].description == "Description"
+    assert result[1].name == "Product 2"
+    assert result[1].description == "Description"

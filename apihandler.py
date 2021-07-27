@@ -96,8 +96,8 @@ class APIHandler:
             elif request.status_code == 401:
                 raise RuntimeError("Returned 401 UNAUTHORIZED. Cannot continue.")
 
-    def read_product(self, product_id: int):
-        pass
+    def list_products(self):
+        return self._session.query(Product).all()
 
     def update_product(self, product_id: int, name: Optional[str] = None, description: Optional[str] = None):
         pass
@@ -108,5 +108,4 @@ class APIHandler:
     def update_offers(self):
         pass
 
-    def list_products(self):
-        pass
+
