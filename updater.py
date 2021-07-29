@@ -1,3 +1,5 @@
+import os
+
 from apihandler import APIHandler
 
 from database import engine, SessionLocal
@@ -7,8 +9,11 @@ Base.metadata.create_all(bind=engine)
 
 db_session = SessionLocal()
 
-handler = APIHandler(db_session, "https://applifting-python-excercise-ms.herokuapp.com/api/v1") # TODO: Get url from env
+api_url = os.getenv("APPLIFTING_API_URL")
+if api_url is None:
+    raise RuntimeError("No APPLIFTING_API_URL is set.")
 
+handler = APIHandler(db_session, api_url)
 
 instance = db_session.query(Instance).first()
 if instance is None:  # first time start
