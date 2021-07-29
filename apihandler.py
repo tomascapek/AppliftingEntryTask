@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, List, Any
 import datetime
 
 import requests
@@ -7,9 +7,12 @@ from sqlalchemy.orm import session
 from model import Instance, Product, Offer, OfferStatus
 
 
-class ProductAlreadyExists(RuntimeError):
+class NotAuthenticated(RuntimeError):
     pass
 
+
+class ProductAlreadyExists(RuntimeError):
+    pass
 
 
 class ProductDoesntExist(RuntimeError):
@@ -26,15 +29,28 @@ class APIHandler:
     _current_access_token: Optional[str] = None
     _current_instance_id: Optional[int] = None
 
-    def _check_auth(self):
-        if self._current_instance_id is None or self._current_access_token is None:
-            raise RuntimeError("Instance ID or access token are not set in this instance! Call start(..) first!")
+    def _check_auth(self) -> bool:
+        """
+        Checks, whether we are authenticated and ready to send requests to given API.
 
-    def __init__(self, db_session: session, base_url: str):
+        :returns True if you can safely send requests, False otherwise
+        """
+        if self._current_instance_id is None or self._current_access_token is None:
+            raise NotAuthenticated()
+
+    def __init__(self, db_session: session, base_url: str) -> None:
         self._session = db_session
         self._base_url = base_url
 
-    def start(self, access_token: Optional[str] = None):
+    def start(self, access_token: Optional[str] = None) -> None:
+        """
+        Does authentication handshake, if None is given as access_token. In both cases,
+        setups inner structures before communication with API.
+
+        :param access_token: is valid access token or None, if you want to get one and save it to database
+
+        :raises RuntimeError: if not 201 is returned from API.
+        """
         if access_token is None:
             request = requests.post(self._base_url + "/auth")
 
@@ -66,6 +82,18 @@ class APIHandler:
                 self._current_instance_id = instance.id
 
     def create_product(self, name: str, description: str) -> int:
+        """
+        Create new product and register it with the API.
+
+        :param name: unique name for product
+        :param description: description of the product
+
+        :raises RuntimeError: if 4xx is returned from API.
+        :raises ProductAlreadyExists: if product with the same name is already registered
+        :raises NotAuthenticated: if you failed to call .start() in before.
+
+        :return: ID of new product or exception, if it fails.
+        """
         self._check_auth()
 
         product = Product(name=name, description=description, instance_id=self._current_instance_id)
@@ -81,7 +109,7 @@ class APIHandler:
                 self._session.commit()
 
                 product = query
-            else:    
+            else:
                 raise ProductAlreadyExists()
         else:
             self._session.add(product)
@@ -113,7 +141,12 @@ class APIHandler:
             elif request.status_code == 401:
                 raise RuntimeError("Returned 401 UNAUTHORIZED. Cannot continue.")
 
-    def list_products(self):
+    def list_products(self) -> List[Dict[str, Any]]:
+        """
+        List all products with all offers, that has some products in stock.
+
+        :return: Dict with data.
+        """
         for product in self._session.query(Product).filter(Product.active == True).all():
             data = {
                 "id": product.id,
@@ -131,7 +164,18 @@ class APIHandler:
 
             yield data
 
-    def update_product(self, product_id: int, name: Optional[str] = None, description: Optional[str] = None):
+    def update_product(self, product_id: int, name: Optional[str] = None, description: Optional[str] = None) -> None:
+        """
+        Change product properties.
+
+        :param product_id: ID of product, on which we will do given changes.
+        :param name: None, if you don't want to change name or new name.
+        :param description: None, if you don't want to change description or new description.
+
+        :raises ProductAlreadyExists: if new name is already in database.
+        :raises ProductDoesntExists: if given ID isn't present in database.
+        """
+
         product = self._session.query(Product).get(product_id)
 
         if product is None:
@@ -150,7 +194,14 @@ class APIHandler:
 
         self._session.commit()
 
-    def delete_product(self, product_id: int):
+    def delete_product(self, product_id: int) -> None:
+        """
+        Delete product from database.
+
+        :param product_id: ID of product to be deleted
+
+        :raises ProductDoesntExist: if product ID doesn't exist in the database.
+        """
         product = self._session.query(Product).get(product_id)
 
         if product is None:
@@ -164,7 +215,15 @@ class APIHandler:
 
         self._session.commit()
 
-    def update_offers(self):
+    def update_offers(self) -> None:
+        """
+        Get updated offers from API.
+
+        :raises NotAutheticated: If you failed to call .start() in before this.
+        :raises RuntimeError: If non 200 response is received.
+        """
+        self._check_auth()
+
         products = self._session.query(Product).where(Product.active == True).all()
 
         for product in products:
@@ -194,7 +253,7 @@ class APIHandler:
 
                 acquired_on = datetime.datetime.now()
 
-                got_new_offers: Boolean = False
+                got_new_offers: bool = False
 
                 for offer_data in response_data:
                     got_new_offers = True
