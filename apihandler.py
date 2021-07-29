@@ -11,6 +11,14 @@ class ProductAlreadyExists(RuntimeError):
     pass
 
 
+
+class ProductDoesntExist(RuntimeError):
+    product_id: int
+
+    def __init__(self, product_id: int):
+        super().__init__(f"Product with id {product_id} doesn't exist!")
+
+
 class APIHandler:
     _base_url: str  # without trailing /
     _session: session  # database session
@@ -123,7 +131,23 @@ class APIHandler:
             yield data
 
     def update_product(self, product_id: int, name: Optional[str] = None, description: Optional[str] = None):
-        pass
+        product = self._session.query(Product).get(product_id)
+
+        if product is None:
+            raise ProductDoesntExist(product_id)
+
+        query = self._session.query(Product).filter(Product.name == name).first()
+
+        if query is not None:
+            raise ProductAlreadyExists()
+
+        if name is not None:
+            product.name = name
+
+        if description is not None:
+            product.description = description
+
+        self._session.commit()
 
     def delete_product(self, product_id: int):
         pass

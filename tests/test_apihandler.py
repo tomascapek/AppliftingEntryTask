@@ -330,3 +330,47 @@ def test_update_offers(requests_get, requests_post, session):
             "offers": []
         },
     ]
+
+# .update_product() -----------------------------------------------
+
+
+@patch("requests.post")
+def test_update_offers(requests_post, session):
+    insert_access_token(session)
+
+    handler = APIHandler(session, "URL")
+    handler.start("AC_TOKEN")
+
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json=MagicMock(return_value={
+            "id": 1
+        })
+    )
+
+    assert handler.create_product("Product 1", "Description") == 1
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json=MagicMock(return_value={
+            "id": 2
+        })
+    )
+
+    assert handler.create_product("Product 2", "Description") == 2
+
+    handler.update_product(1, name="Different name of the same product")
+
+    product = session.query(Product).get(1)
+
+    assert product.name == "Different name of the same product"
+    assert product.description == "Description"
+
+    handler.update_product(1, description="Different description")
+
+    product = session.query(Product).get(1)
+
+    assert product.name == "Different name of the same product"
+    assert product.description == "Different description"
+
+    with raises(ProductAlreadyExists):
+        handler.update_product(1, name="Product 2")
