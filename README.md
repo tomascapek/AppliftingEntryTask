@@ -2,6 +2,7 @@
 
 ## How to run
 
+### Using docker-compose
 Following snippet will build Docker image and launch it using docker-compose.
 Result will be at 127.0.0.1:8000.
 
