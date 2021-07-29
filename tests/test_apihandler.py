@@ -335,7 +335,7 @@ def test_update_offers(requests_get, requests_post, session):
 
 
 @patch("requests.post")
-def test_update_offers(requests_post, session):
+def test_update_product(requests_post, session):
     insert_access_token(session)
 
     handler = APIHandler(session, "URL")
@@ -374,3 +374,35 @@ def test_update_offers(requests_post, session):
 
     with raises(ProductAlreadyExists):
         handler.update_product(1, name="Product 2")
+
+
+@patch("requests.post")
+def test_delete_product(requests_post, session):
+    insert_access_token(session)
+
+    handler = APIHandler(session, "URL")
+    handler.start("AC_TOKEN")
+
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json=MagicMock(return_value={
+            "id": 1
+        })
+    )
+
+    assert handler.create_product("Product 1", "Description") == 1
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json=MagicMock(return_value={
+            "id": 2
+        })
+    )
+
+    assert handler.create_product("Product 2", "Description") == 2
+
+    handler.delete_product(2)
+
+    products = list(handler.list_products())
+
+    assert len(products) == 1
+    assert products[0]["id"] == 1

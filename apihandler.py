@@ -72,7 +72,8 @@ class APIHandler:
 
         query = self._session.query(Product).filter(Product.name == name).first()
 
-        # TODO: this is possibly not what we want - maybe we want a new ID for existing deleted Product
+        # I was not sure, whether we want the same ID for previously existing product or not,
+        # but I decided, that it makes sense to do so
         if query is not None:
             if not query.active:
                 query.active = True
@@ -150,7 +151,18 @@ class APIHandler:
         self._session.commit()
 
     def delete_product(self, product_id: int):
-        pass
+        product = self._session.query(Product).get(product_id)
+
+        if product is None:
+            raise ProductDoesntExist(product_id)
+
+        product.active = False
+
+        self._session.query(Offer).filter(Offer.product_id == product_id, Offer.status == OfferStatus.active).update({
+            "status": OfferStatus.historic
+        })
+
+        self._session.commit()
 
     def update_offers(self):
         products = self._session.query(Product).where(Product.active == True).all()
