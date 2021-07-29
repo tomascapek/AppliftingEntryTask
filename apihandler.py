@@ -4,7 +4,7 @@ import datetime
 import requests
 from sqlalchemy.orm import session
 
-from model import Instance, Product
+from model import Instance, Product, Offer, OfferStatus
 
 
 class ProductAlreadyExists(RuntimeError):
@@ -97,7 +97,22 @@ class APIHandler:
                 raise RuntimeError("Returned 401 UNAUTHORIZED. Cannot continue.")
 
     def list_products(self):
-        return self._session.query(Product).all()
+        for product in self._session.query(Product).filter(Product.active == True).all():
+            data = {
+                "id": product.id,
+                "name": product.name,
+                "description": product.description,
+                "offers": []
+            }
+
+            for offer in product.offers.filter(Offer.status == OfferStatus.active):
+                if offer.items_in_stock > 0:
+                    data["offers"].append({
+                        "price": offer.price,
+                        "items_in_stock": offer.items_in_stock,
+                    })
+
+            yield data
 
     def update_product(self, product_id: int, name: Optional[str] = None, description: Optional[str] = None):
         pass
@@ -106,6 +121,61 @@ class APIHandler:
         pass
 
     def update_offers(self):
-        pass
+        products = self._session.query(Product).where(Product.active == True).all()
 
+        for product in products:
+            # used in case, when there are no active offers, so that we know, that price was refreshed
+            # at the given point - not sure, if necessary, but given API wasn't documented in this regards, so let's
+            # play it safe
+            best_price_obj = product.offers.filter(Offer.status == OfferStatus.active).order_by(Offer.price).first()
 
+            best_price: int = 0
+            if best_price_obj is not None:
+                best_price = best_price_obj.price
+
+            active_offers = product.offers.filter(Offer.status == OfferStatus.active)
+
+            active_offers.update({"status": OfferStatus.historic})
+
+            request = requests.get(
+                self._base_url + f"/products/{product.id}/offers",
+                data={},
+                headers={
+                    "Bearer": self._current_access_token
+                }
+            )
+
+            if request.status_code == 200:
+                response_data = request.json()
+
+                acquired_on = datetime.datetime.now()
+
+                got_new_offers: Boolean = False
+
+                for offer_data in response_data:
+                    got_new_offers = True
+
+                    offer = Offer(
+                        price=offer_data["price"],
+                        items_in_stock=offer_data["items_in_stock"],
+                        acquired_on=acquired_on,
+                        status=OfferStatus.active,
+                        product_id=product.id
+                    )
+
+                    self._session.add(offer)
+
+                if not got_new_offers:
+                    offer = Offer(
+                        price=best_price,
+                        items_in_stock=0,
+                        acquired_on=acquired_on,
+                        status=OfferStatus.active,
+                        product_id=product.id
+                    )
+
+                    self._session.add(offer)
+
+                self._session.commit()
+            else:
+                raise RuntimeError(f"Got {request.status_code} instead od 200.")

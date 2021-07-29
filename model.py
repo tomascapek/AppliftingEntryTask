@@ -1,6 +1,6 @@
 import enum
 
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Enum, Boolean
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -19,8 +19,10 @@ class Product(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(256), nullable=False, unique=True)
     description = Column(String)
+    active = Column(Boolean, default=True)
 
     instance_id = Column(Integer, ForeignKey("instance.id"))
+    offers = relationship("Offer", lazy="dynamic")
 
 
 class OfferStatus(enum.Enum):
@@ -36,3 +38,6 @@ class Offer(Base):
     items_in_stock = Column(Integer, nullable=False)
     acquired_on = Column(DateTime, nullable=False)
     status = Column(Enum(OfferStatus), nullable=False)
+
+    product_id = Column(Integer, ForeignKey("product.id"))
+

@@ -1,5 +1,5 @@
 import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, call
 from pytest import raises
 
 from apihandler import APIHandler, ProductAlreadyExists
@@ -137,25 +137,196 @@ def test_list_products(requests_post, session):
 
     requests_post.return_value = MagicMock(
         status_code=201,
-        json={
+        json=MagicMock(return_value={
             "id": 1
-        }
+        })
     )
 
     assert handler.create_product("Product 1", "Description") == 1
 
     requests_post.return_value = MagicMock(
         status_code=201,
-        json={
+        json=MagicMock(return_value={
             "id": 2
-        }
+        })
     )
 
     assert handler.create_product("Product 2", "Description") == 2
 
-    result = handler.list_products()
+    result = list(handler.list_products())
 
-    assert result[0].name == "Product 1"
-    assert result[0].description == "Description"
-    assert result[1].name == "Product 2"
-    assert result[1].description == "Description"
+    assert result == [
+        {
+            "id": 1,
+            "name": "Product 1",
+            "description": "Description",
+            "offers": []
+        },
+        {
+            "id": 2,
+            "name": "Product 2",
+            "description": "Description",
+            "offers": []
+        },
+    ]
+    # offers are tested in test_update_offers(...)
+
+
+# .update_offers() -----------------------------------------------
+
+@patch("requests.post")
+@patch("requests.get")
+def test_update_offers(requests_get, requests_post, session):
+    insert_access_token(session)
+
+    handler = APIHandler(session, "URL")
+    handler.start("AC_TOKEN")
+
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json=MagicMock(return_value={
+            "id": 1
+        })
+    )
+
+    assert handler.create_product("Product 1", "Description") == 1
+
+    requests_post.return_value = MagicMock(
+        status_code=201,
+        json=MagicMock(return_value={
+            "id": 2
+        })
+    )
+
+    assert handler.create_product("Product 2", "Description") == 2
+
+    requests_get.side_effect = [
+        MagicMock(
+            status_code=200,
+            json=MagicMock(
+                return_value=[
+                    {
+                        "id": 1,
+                        "price": 1000,
+                        "items_in_stock": 5,
+                    },
+                    {
+                        "id": 1,
+                        "price": 1001,
+                        "items_in_stock": 0,
+                    },
+                    {
+                        "id": 1,
+                        "price": 1002,
+                        "items_in_stock": 7,
+                    },
+                ]
+            )
+        ),
+
+        MagicMock(
+            status_code=200,
+            json=MagicMock(
+                return_value=[
+                    {
+                        "id": 2,
+                        "price": 1000,
+                        "items_in_stock": 5,
+                    },
+                ]
+            )
+        )
+    ]
+
+    handler.update_offers()
+
+    requests_get.assert_has_calls([
+        call("URL/products/1/offers", data={}, headers={"Bearer": "AC_TOKEN"}),
+        call("URL/products/2/offers", data={}, headers={"Bearer": "AC_TOKEN"}),
+    ])
+    assert list(handler.list_products()) == [
+        {
+            "id": 1,
+            "name": "Product 1",
+            "description": "Description",
+            "offers": [
+                {
+                    "price": 1000,
+                    "items_in_stock": 5
+                },
+                {
+                    "price": 1002,
+                    "items_in_stock": 7
+                },
+            ]
+        },
+        {
+            "id": 2,
+            "name": "Product 2",
+            "description": "Description",
+            "offers": [
+                {
+                    "price": 1000,
+                    "items_in_stock": 5
+                },
+            ]
+        },
+    ]
+
+    requests_get.side_effect = [
+        MagicMock(
+            status_code=200,
+            json=MagicMock(
+                return_value=[
+                    {
+                        "id": 1,
+                        "price": 1000,
+                        "items_in_stock": 3,
+                    },
+                    {
+                        "id": 1,
+                        "price": 1001,
+                        "items_in_stock": 2,
+                    },
+                ]
+            )
+        ),
+
+        MagicMock(
+            status_code=200,
+            json=MagicMock(
+                return_value=[
+                ]
+            )
+        )
+    ]
+
+    handler.update_offers()
+
+    requests_get.assert_has_calls([
+        call("URL/products/1/offers", data={}, headers={"Bearer": "AC_TOKEN"}),
+        call("URL/products/2/offers", data={}, headers={"Bearer": "AC_TOKEN"}),
+    ])
+    assert list(handler.list_products()) == [
+        {
+            "id": 1,
+            "name": "Product 1",
+            "description": "Description",
+            "offers": [
+                {
+                    "price": 1000,
+                    "items_in_stock": 3
+                },
+                {
+                    "price": 1001,
+                    "items_in_stock": 2
+                },
+            ]
+        },
+        {
+            "id": 2,
+            "name": "Product 2",
+            "description": "Description",
+            "offers": []
+        },
+    ]
