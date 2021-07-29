@@ -64,14 +64,22 @@ class APIHandler:
 
         query = self._session.query(Product).filter(Product.name == name).first()
 
+        # TODO: this is possibly not what we want - maybe we want a new ID for existing deleted Product
         if query is not None:
-            raise ProductAlreadyExists()
+            if not query.active:
+                query.active = True
 
-        self._session.add(product)
-        self._session.flush()
-        self._session.commit()
+                self._session.commit()
 
-        self._session.refresh(product)
+                product = query
+            else:    
+                raise ProductAlreadyExists()
+        else:
+            self._session.add(product)
+            self._session.flush()
+            self._session.commit()
+
+            self._session.refresh(product)
 
         request = requests.post(
             self._base_url + "/products/register",
