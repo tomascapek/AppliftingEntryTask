@@ -204,7 +204,7 @@ class APIHandler:
         """
         product = self._session.query(Product).get(product_id)
 
-        if product is None:
+        if product is None or not product.active:
             raise ProductDoesntExist(product_id)
 
         product.active = False
