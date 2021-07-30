@@ -282,3 +282,66 @@ class APIHandler:
                 self._session.commit()
             else:
                 raise RuntimeError(f"Got {request.status_code} instead od 200.")
+
+    def get_price_trend(self, product_id: int, start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None):
+
+        product = self._session.query(Product).get(product_id)
+
+        if product is None or not product.active:
+            raise ProductDoesntExist(product_id)
+
+        if start is None:
+            now = datetime.datetime.now()
+            start = now - datetime.timedelta(minutes=5)
+            end = now
+        else:
+            if start > end:
+                buffer = end
+                end = start
+                start = buffer
+
+        offers = self._session.query(Offer).filter(Offer.product_id == product_id, Offer.acquired_on >= start, Offer.acquired_on <= end)
+
+        best_offers = dict()
+        for offer in offers.all():
+            if offer.items_in_stock == 0:
+                continue
+
+            if str(offer.acquired_on) not in best_offers:
+                best_offers[str(offer.acquired_on)] = offer.price
+            else:
+                if best_offers[str(offer.acquired_on)] > offer.price:
+                    best_offers[str(offer.acquired_on)] = offer.price
+
+        grouped_offers = self._session.query(Offer).filter(Offer.acquired_on >= start, Offer.acquired_on <= end).group_by(Offer.acquired_on)
+
+        result = list()
+        for offer in grouped_offers.all():
+            if str(offer.acquired_on) in best_offers:
+                result.append({
+                    "price": best_offers[str(offer.acquired_on)],
+                    "acquired_on": offer.acquired_on
+                })
+
+        return result
+
+    def get_history(self, product_id: int, start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None):
+        product = self._session.query(Product).get(product_id)
+
+        if product is None or not product.active:
+            raise ProductDoesntExist(product_id)
+
+        history = self.get_price_trend(product_id, start, end)
+
+        if len(history) == 0:
+            return []
+        elif len(history) == 1:
+            return {
+                "history": history,
+                "rise_or_fall": 0.0
+            }
+        else:
+            return {
+                "history": history,
+                "rise_or_fall": (history[-1]["price"] - history[0]["price"])/(history[0]["price"]/100.0)
+            }

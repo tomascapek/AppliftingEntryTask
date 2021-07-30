@@ -5,7 +5,7 @@ from fastapi import FastAPI, Response, status
 from apihandler import APIHandler, ProductAlreadyExists, ProductDoesntExist
 from database import engine, SessionLocal
 from model import Instance, Base
-from pydantic_model import Product, UpdateProduct
+from pydantic_model import Product, UpdateProduct, TimeRange
 
 Base.metadata.create_all(bind=engine)
 
@@ -67,6 +67,17 @@ def change_product(product: UpdateProduct, response: Response):
 def delete_product(product_id, response: Response):
     try:
         handler.delete_product(product_id)
+    except ProductDoesntExist:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {
+            "message": "Product with this ID doesn't exists."
+        }
+
+
+@api.post("/product-offer-history/{product_id}")
+def product_offer_history(product_id: int, time_range: TimeRange, response: Response):
+    try:
+        return handler.get_history(product_id, time_range.start, time_range.end)
     except ProductDoesntExist:
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {

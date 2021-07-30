@@ -1,5 +1,7 @@
+import datetime
+
 import pytest
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, session
 from sqlalchemy import create_engine
 
 import model
@@ -28,3 +30,20 @@ def session(create_structure, connection):
     yield session
     session.close()
     transaction.rollback()
+
+def create_offer(
+    session: session,
+    product_id: int,
+    price: int,
+    stock: int,
+    date: datetime.datetime,
+    status: model.OfferStatus
+):
+    offer = model.Offer(
+        product_id=product_id,
+        price=price,
+        items_in_stock=stock,
+        acquired_on=date,
+        status=status
+    )
+    session.add(offer)

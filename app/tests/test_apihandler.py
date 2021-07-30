@@ -1,10 +1,13 @@
 import datetime
 from unittest.mock import patch, MagicMock, call
 from pytest import raises
+import re
+
+from sqlalchemy.sql import text
 
 from apihandler import APIHandler, ProductAlreadyExists
-from fixtures import session, create_structure, connection
-from model import Instance, Product
+from .fixtures import session, create_structure, connection, create_offer
+from model import Instance, Product, OfferStatus
 
 
 # .start() -----------------------------------------------------------
@@ -331,6 +334,7 @@ def test_update_offers(requests_get, requests_post, session):
         },
     ]
 
+
 # .update_product() -----------------------------------------------
 
 
@@ -406,3 +410,159 @@ def test_delete_product(requests_post, session):
 
     assert len(products) == 1
     assert products[0]["id"] == 1
+
+
+# .get_price_trend() -----------------------------------------------
+
+
+def test_get_price_trend(session, connection):
+    product = Product(name="Test product", description="Description")
+
+    session.add(product)
+    session.commit()
+    session.flush()
+
+    session.refresh(product)
+
+    handler = APIHandler(session, "URL")  # no start this time! We don't need communication with API.
+
+    # create test data
+    create_offer(session, 1, 1, 1, datetime.datetime(2021, 7, 1, 12, 0, 0), OfferStatus.historic)
+
+    create_offer(session, 1, 1, 0, datetime.datetime(2021, 7, 1, 12, 1, 0), OfferStatus.historic)
+    create_offer(session, 1, 2, 2, datetime.datetime(2021, 7, 1, 12, 1, 0), OfferStatus.historic)
+    create_offer(session, 1, 3, 3, datetime.datetime(2021, 7, 1, 12, 1, 0), OfferStatus.historic)
+
+    create_offer(session, 1, 1, 0, datetime.datetime(2021, 7, 1, 12, 2, 0), OfferStatus.historic)
+    create_offer(session, 1, 2, 0, datetime.datetime(2021, 7, 1, 12, 2, 0), OfferStatus.historic)
+    create_offer(session, 1, 3, 3, datetime.datetime(2021, 7, 1, 12, 2, 0), OfferStatus.historic)
+    create_offer(session, 1, 4, 4, datetime.datetime(2021, 7, 1, 12, 2, 0), OfferStatus.historic)
+
+    create_offer(session, 1, 4, 4, datetime.datetime(2021, 7, 1, 12, 3, 0), OfferStatus.historic)
+
+    create_offer(session, 1, 5, 5, datetime.datetime(2021, 7, 1, 12, 4, 0), OfferStatus.historic)
+
+    create_offer(session, 1, 6, 6, datetime.datetime(2021, 7, 1, 12, 5, 0), OfferStatus.historic)
+
+    session.commit()
+
+    trend = handler.get_price_trend(
+        1,
+        start=datetime.datetime(2021, 7, 1, 12, 0, 0),
+        end=datetime.datetime(2021, 7, 1, 12, 5, 0)
+    )
+
+    assert trend == [
+        {
+            "price": 1,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 0, 0)
+        },
+        {
+            "price": 2,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 1, 0)
+        },
+        {
+            "price": 3,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 2, 0)
+        },
+        {
+            "price": 4,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 3, 0)
+        },
+        {
+            "price": 5,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 4, 0)
+        },
+        {
+            "price": 6,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 5, 0)
+        },
+    ]
+
+    trend = handler.get_price_trend(
+        1,
+        start=datetime.datetime(2021, 7, 1, 12, 2, 0),
+        end=datetime.datetime(2021, 7, 1, 12, 3, 0)
+    )
+
+    assert trend == [
+        {
+            "price": 3,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 2, 0)
+        },
+        {
+            "price": 4,
+            "acquired_on": datetime.datetime(2021, 7, 1, 12, 3, 0)
+        }
+    ]
+
+
+# .get_history() -----------------------------------------------
+
+def test_get_history(session, connection):
+    product = Product(name="Test product", description="Description")
+    session.add(product)
+
+    handler = APIHandler(session, "URL")  # no start this time! We don't need communication with API.
+
+    # create test data
+    create_offer(session, 1, 1, 1, datetime.datetime(2021, 7, 1, 12, 0, 0), OfferStatus.historic)
+
+    create_offer(session, 1, 3, 1, datetime.datetime(2021, 7, 1, 12, 1, 0), OfferStatus.historic)
+
+    create_offer(session, 1, 2, 1, datetime.datetime(2021, 7, 1, 12, 2, 0), OfferStatus.active)
+
+    session.commit()
+
+    history = handler.get_history(1, datetime.datetime(2021, 7, 1, 12, 0, 0), datetime.datetime(2021, 7, 1, 12, 2, 0))
+
+    assert history == {
+        "history": [
+            {
+                "price": 1,
+                "acquired_on": datetime.datetime(2021, 7, 1, 12, 0, 0)
+            },
+            {
+                "price": 3,
+                "acquired_on": datetime.datetime(2021, 7, 1, 12, 1, 0)
+            },
+            {
+                "price": 2,
+                "acquired_on": datetime.datetime(2021, 7, 1, 12, 2, 0)
+            },
+        ],
+        "rise_or_fall": 100.0
+    }
+
+    product = Product(name="Test product 2", description="Description")
+    session.add(product)
+
+    # create test data for the second time
+    create_offer(session, 2, 10, 1, datetime.datetime(2021, 7, 1, 12, 0, 0), OfferStatus.historic)
+
+    create_offer(session, 2, 5, 1, datetime.datetime(2021, 7, 1, 12, 1, 0), OfferStatus.historic)
+
+    create_offer(session, 2, 2, 1, datetime.datetime(2021, 7, 1, 12, 2, 0), OfferStatus.active)
+
+    session.commit()
+
+    history = handler.get_history(2, datetime.datetime(2021, 7, 1, 12, 0, 0), datetime.datetime(2021, 7, 1, 12, 2, 0))
+
+    assert history == {
+        "history": [
+            {
+                "price": 10,
+                "acquired_on": datetime.datetime(2021, 7, 1, 12, 0, 0)
+            },
+            {
+                "price": 5,
+                "acquired_on": datetime.datetime(2021, 7, 1, 12, 1, 0)
+            },
+            {
+                "price": 2,
+                "acquired_on": datetime.datetime(2021, 7, 1, 12, 2, 0)
+            },
+        ],
+        "rise_or_fall": -80.0
+    }
+
