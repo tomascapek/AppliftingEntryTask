@@ -22,4 +22,3 @@ else:  # we already have a access token
     handler.start(instance.access_token)
 
 handler.update_offers()
-

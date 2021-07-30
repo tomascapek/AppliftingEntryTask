@@ -40,4 +40,3 @@ class Offer(Base):
     status = Column(Enum(OfferStatus), nullable=False)
 
     product_id = Column(Integer, ForeignKey("product.id"))
-

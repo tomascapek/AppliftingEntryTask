@@ -283,7 +283,8 @@ class APIHandler:
             else:
                 raise RuntimeError(f"Got {request.status_code} instead od 200.")
 
-    def get_price_trend(self, product_id: int, start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None):
+    def get_price_trend(self, product_id: int, start: Optional[datetime.datetime] = None,
+                        end: Optional[datetime.datetime] = None):
         """
         Returns sorted list with history of offer price for given product.
 
@@ -311,7 +312,8 @@ class APIHandler:
                 end = start
                 start = buffer
 
-        offers = self._session.query(Offer).filter(Offer.product_id == product_id, Offer.acquired_on >= start, Offer.acquired_on <= end)
+        offers = self._session.query(Offer).filter(Offer.product_id == product_id, Offer.acquired_on >= start,
+                                                   Offer.acquired_on <= end)
 
         best_offers = dict()
         for offer in offers.all():
@@ -324,7 +326,8 @@ class APIHandler:
                 if best_offers[str(offer.acquired_on)] > offer.price:
                     best_offers[str(offer.acquired_on)] = offer.price
 
-        grouped_offers = self._session.query(Offer).filter(Offer.acquired_on >= start, Offer.acquired_on <= end).group_by(Offer.acquired_on)
+        grouped_offers = self._session.query(Offer).filter(Offer.acquired_on >= start,
+                                                           Offer.acquired_on <= end).group_by(Offer.acquired_on)
 
         result = list()
         for offer in grouped_offers.all():
@@ -336,7 +339,8 @@ class APIHandler:
 
         return result
 
-    def get_history(self, product_id: int, start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None):
+    def get_history(self, product_id: int, start: Optional[datetime.datetime] = None,
+                    end: Optional[datetime.datetime] = None):
         """
         Get history of offers for given products and calculate rise or fall of the price.
 
@@ -364,5 +368,5 @@ class APIHandler:
         else:
             return {
                 "history": history,
-                "rise_or_fall": (history[-1]["price"] - history[0]["price"])/(history[0]["price"]/100.0)
+                "rise_or_fall": (history[-1]["price"] - history[0]["price"]) / (history[0]["price"] / 100.0)
             }
