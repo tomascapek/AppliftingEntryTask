@@ -284,7 +284,18 @@ class APIHandler:
                 raise RuntimeError(f"Got {request.status_code} instead od 200.")
 
     def get_price_trend(self, product_id: int, start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None):
+        """
+        Returns sorted list with history of offer price for given product.
 
+        If start is None, it will assume, you want last 5 minutes.
+
+        :raises: ProductDoesntExists: if Product doesnt exist
+
+        :param product_id: of desired product
+        :param start: starting time or None
+        :param end: ending time or None
+        :return: list of offer history
+        """
         product = self._session.query(Product).get(product_id)
 
         if product is None or not product.active:
@@ -326,6 +337,16 @@ class APIHandler:
         return result
 
     def get_history(self, product_id: int, start: Optional[datetime.datetime] = None, end: Optional[datetime.datetime] = None):
+        """
+        Get history of offers for given products and calculate rise or fall of the price.
+
+        :raises: ProductDoesntExists: if Product doesnt exist
+
+        :param product_id: of desired product
+        :param start: start time or None
+        :param end: end time or None
+        :return: History, with calculated rise or fall.
+        """
         product = self._session.query(Product).get(product_id)
 
         if product is None or not product.active:
